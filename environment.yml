@@ -1,4 +1,4 @@
-name: autoformer
+name: loss-shaping
 channels:
   - conda-forge
   - pytorch
@@ -10,5 +10,10 @@ dependencies:
   - numpy
   - pandas
   - scikit-learn
+  - wandb
+  - seaborn
+  - tqdm
+  - sympy
   - pip:
     - torch==1.9.0
+    - reformer_pytorch

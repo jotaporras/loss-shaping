@@ -1,29 +1,36 @@
 import argparse
-import os
 import torch
 from exp.exp_main import Exp_Main
 import random
 import numpy as np
 
+import wandb
+from datetime import datetime
+
 
 def main():
-    fix_seed = 2021
-    random.seed(fix_seed)
-    torch.manual_seed(fix_seed)
-    np.random.seed(fix_seed)
+    """
+    Main entry point for running time series forecasting experiments. 
+    Refer to the README for example usage.
+    """
 
     parser = argparse.ArgumentParser(description='Autoformer & Transformer family for Time Series Forecasting')
 
     # basic config
+    parser.add_argument('--seed', type=int, required=False, default=0, help='randomization seed')
     parser.add_argument('--is_training', type=int, required=True, default=1, help='status')
     parser.add_argument('--model_id', type=str, required=True, default='test', help='model id')
     parser.add_argument('--model', type=str, required=True, default='Autoformer',
                         help='model name, options: [Autoformer, Informer, Transformer]')
+    
+    # logging
+    # eval steps
+    parser.add_argument('--eval_steps', type=int, default=440, help='Test every eval_steps')
 
     # data loader
     parser.add_argument('--data', type=str, required=True, default='ETTm1', help='dataset type')
-    parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
-    parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')
+    parser.add_argument('--root_path', type=str, help='root path of the data file')
+    parser.add_argument('--data_path', type=str, help='data file')
     parser.add_argument('--features', type=str, default='M',
                         help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
     parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
@@ -69,6 +76,7 @@ def main():
     parser.add_argument('--des', type=str, default='test', help='exp description')
     parser.add_argument('--loss', type=str, default='mse', help='loss function')
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
+    parser.add_argument('--pct_start', type=float, default=0.3, help='pct_start')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 
     # GPU
@@ -77,28 +85,114 @@ def main():
     parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
     parser.add_argument('--devices', type=str, default='0,1,2,3', help='device ids of multile gpus')
 
+    # wandb
+    parser.add_argument('--wandb_run', type=str, default='missing name', help='wandb run')
+    parser.add_argument('--wandb_project', type=str, default='Autoformer', help='wandb project')
+    parser.add_argument('--experiment_tag', type=str, default='e0_untagged_experiment', help='wandb project')
+
+    # Constrained
+    parser.add_argument('--constraint_type', type=str, default="erm", help='Constraint type (erm,constant,static_linear,dynamic_linear,resilience,monotonic,static_exponential)')
+    parser.add_argument('--constraint_level', type=float, help='Constraint level (epsilon) if using constant constraint_type')    
+    parser.add_argument('--constraint_slope', type=float, help='Constraint slope if using static_linear or dynamic_linear')
+    parser.add_argument('--constraint_offset', type=float, help='Constraint offset if using static_linear or dynamic_linear')
+    parser.add_argument('--dual_lr',  type=float,default=0.0 , help='dual learning rate')
+    parser.add_argument('--dual_init',  type=float,default=0.0 , help='dual var initialization')
+    parser.add_argument('--dual_clip',  type=float, default=10.0 , help='clip dual variables')
+    parser.add_argument('--sampling', action='store_true', default=False, help='Wether sample time steps in Lagrangian')
+
+    # Resilient
+    parser.add_argument('--resilient_lr', type=float, default=0.0, help='Resilient learning rate')
+    parser.add_argument('--resilient_cost_alpha', type=float, default=2.0, help='resilient quadratic cost penalty')
+
+    # PatchTST
+    parser.add_argument('--fc_dropout', type=float, default=0.05, help='fully connected dropout')
+    parser.add_argument('--head_dropout', type=float, default=0.0, help='head dropout')
+    parser.add_argument('--patch_len', type=int, default=16, help='patch length')
+    parser.add_argument('--stride', type=int, default=8, help='stride')
+    parser.add_argument('--padding_patch', default='end', help='None: None; end: padding on the end')
+    parser.add_argument('--revin', type=int, default=1, help='RevIN; True 1 False 0')
+    parser.add_argument('--affine', type=int, default=0, help='RevIN-affine; True 1 False 0')
+    parser.add_argument('--subtract_last', type=int, default=0, help='0: subtract mean; 1: subtract last')
+    parser.add_argument('--decomposition', type=int, default=0, help='decomposition; True 1 False 0')
+    parser.add_argument('--kernel_size', type=int, default=25, help='decomposition-kernel')
+    parser.add_argument('--individual', type=int, default=0, help='individual head; True 1 False 0')
+    
+    # Koopa
+    parser.add_argument('--dynamic_dim', type=int, default=128, help='latent dimension of koopman embedding')
+    parser.add_argument('--hidden_dim', type=int, default=64, help='hidden dimension of en/decoder')
+    parser.add_argument('--hidden_layers', type=int, default=2, help='number of hidden layers of en/decoder')
+    parser.add_argument('--seg_len', type=int, default=48, help='segment length of time series')
+    parser.add_argument('--num_blocks', type=int, default=3, help='number of Koopa blocks')
+    parser.add_argument('--alpha', type=float, default=0.2, help='spectrum filter ratio')
+    parser.add_argument('--multistep', type=bool, help='whether to use approximation for multistep K', default=False)
+    parser.add_argument('--top_k', type=int, help='topk', default=5)
+    parser.add_argument('--num_kernels', type=int, default=6, help='for Inception')
+    # de-stationary projector params
+    parser.add_argument('--p_hidden_dims', type=int, nargs='+', default=[128, 128],
+                        help='hidden layer dimensions of projector (List)')
+    parser.add_argument('--p_hidden_layers', type=int, default=2, help='number of hidden layers in projector')
+
+    parser.add_argument('--task_name', type=str, required=False, default='long_term_forecast',
+                        help='for compatibility')
+
     args = parser.parse_args()
+    
+    print("GOT ARG")
+    print(args.multistep)
+    
+
+    # Argument validation
+    # if Constant, then constraint_level must be provided
+    if args.constraint_type == 'constant' and args.constraint_level is None:
+        raise ValueError("Constraint type is constant, but constraint_level is None")
+    # if StaticLinear or DynamicLinear, then constraint_slope and constraint_offset must be provided
+    if args.constraint_type in ['static_linear','dynamic_linear','static_exponential'] and (args.constraint_slope is None or args.constraint_offset is None):
+        raise ValueError("Constraint type is static_linear or dynamic_linear, but constraint_slope or constraint_offset is None")
+    # if not ERM, then dual_lr and dual_init must be provided
+    if args.constraint_type != 'erm' and (args.dual_lr is None or args.dual_init is None):
+        raise ValueError("Constraint type is not erm, but dual_lr or dual_init is None")
+
+    if args.seed==0:
+       print("No seed provided (--seed 0), using current time as seed")
+       print("Randomly generating seed from time: ")
+       args.seed = int(datetime.now().timestamp())
+    else: 
+        print(f"Using user provided seed")
+    print(f"Seed is {args.seed}, this will be reflected in wandb config.")
+    
+    #cast seed as int 
+    seed = int(args.seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    
+    print("Starting run with args")
+    print(args)
 
     args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
     if args.use_gpu and args.use_multi_gpu:
-        args.devices = args.devices.replace(' ', '')
+        args.dvices = args.devices.replace(' ', '')
         device_ids = args.devices.split(',')
         args.device_ids = [int(id_) for id_ in device_ids]
         args.gpu = args.device_ids[0]
 
     print('Args in experiment:')
     print(args)
-
+    run_name = f"{args.wandb_run}/{args.data_path}_{args.model}_len{args.pred_len}"
+    wandb.init(name=run_name, project=args.wandb_project, config=args,tags=[args.experiment_tag])
+    # Real seed is the actual seed passed to the RNGs (The user might have passed seed=0 to autogenerate seeds)
+    wandb.log({"real_seed":args.seed})
     Exp = Exp_Main
 
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
+            setting = '{}_{}_{}_constr_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}_wb_{}'.format(
                 args.model_id,
                 args.model,
                 args.data,
+                args.constraint_type,
                 args.features,
                 args.seq_len,
                 args.label_len,
@@ -111,7 +205,13 @@ def main():
                 args.factor,
                 args.embed,
                 args.distil,
-                args.des, ii)
+                args.des, 
+                ii,
+                # uuid fron wandb run
+                wandb.run.id,
+                )
+            # log the file ID used for writing the test preds.
+            wandb.log({"file_id":setting})
 
             exp = Exp(args)  # set experiments
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))

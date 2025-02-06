@@ -1,0 +1,78 @@
+# 18. Baseline ERM Patch TST. First of a series of new experiments, after some bugfixes. Check commit history and project notes.
+# Separate sweep for patch tst due to different parameters.
+program: run.py
+method: grid
+metric:
+  name: mse/test
+  goal: minimize
+parameters:
+  wandb_run:
+    value: "Electricity-StatInformed-ERM-10e-PatchTST"
+  wandb_project:
+    value: "alelab/Autoformer"
+  experiment_tag:
+    value: "e10_electricity_patchtst_reproducing"
+  des:
+    value: "PatchTST ERM 10e baseline"
+  model:
+    values: ["PatchTST"]
+  train_epochs:
+    value: 100
+  patience:
+    value: 10
+  constraint_level: #signals that we're doing ERM
+    value: -1
+  dual_init: #Irrelevant for ERM
+    value: 1.0
+  dual_lr: #signals that we're doing ERM
+    value: 0
+  pred_len:
+    values: [96,192,336]
+  is_training:
+    value: "1"
+  root_path:
+    value: "./dataset/electricity/"
+  data_path:
+    value: "electricity.csv"
+  model_id:
+    value: "electricity_constrained"
+  data:
+    value: "custom"
+  features:
+    value: "M"
+  seq_len:
+    value: 336
+  label_len:
+    value: 48 #default value, same as patchtst
+  # Model parameters
+  enc_in:
+    value: 321
+  e_layers:
+    value: 3
+  n_heads:
+    value: 16
+  d_model:
+    value: 128
+  d_ff:
+    value: 256
+  dropout:
+    value: 0.2
+  fc_dropout:
+    value: 0.2
+  head_dropout:
+    value: 0
+  patch_len:
+    value: 16
+  stride:
+    value: 8
+  itr:
+    value: 1
+  batch_size:
+    value: 32
+  learning_rate: 
+    value: 0.0001
+  # new patchtst parameter
+  lradj: 
+    value: "TST"
+  seed:
+    value: 2021 # Forces the seed to be different for each run.

@@ -1,0 +1,61 @@
+# 17. Baseline ERM PatchTST. Using parameters in https://github.com/yuqinie98/PatchTST/blob/main/PatchTST_supervised/scripts/PatchTST/weather.sh
+program: run.py
+method: grid
+metric:
+  name: mse/test
+  goal: minimize
+parameters:
+  wandb_run:
+    value: "Exchange-StatInformed-ERM-10e"
+  wandb_project: 
+    value: "alelab/Autoformer"
+  experiment_tag:
+    value: "e13_erm_exchange_dlfix"
+  des:
+    value: "ERM 10e baseline"
+  model:
+    values: ["Autoformer","Reformer","Informer","Transformer"]
+  train_epochs:
+    value: 10
+  constraint_level: #signals that we're doing ERM
+    value: -1
+  constraint_type: 
+    value: "erm"
+  dual_init: #Irrelevant for ERM
+    value: 1.0
+  dual_lr: #signals that we're doing ERM
+    value: 0
+  pred_len:
+    values: [96,192,336,720]
+  is_training:
+    value: "1"
+  root_path:
+    value: "./dataset/exchange_rate/"
+  data_path:
+    value: "exchange_rate.csv"
+  model_id:
+    value: "exchange_rate"
+  data:
+    value: "custom"
+  features:
+    value: "M"
+  seq_len:
+    value: 96
+  label_len:
+    value: 48
+  e_layers:
+    value: 2
+  d_layers:
+    value: 1
+  factor:
+    value: 3
+  enc_in:
+    value: 8
+  dec_in:
+    value: 8
+  c_out:
+    value: 8
+  itr:
+    value: 1
+  seed:
+    value: 0 # Forces the seed to be different for each run.

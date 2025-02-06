@@ -1,8 +1,12 @@
 import os
 import torch
+import numpy as np
 
 
 class Exp_Basic(object):
+    """
+    Base class for experiment runner (from original Autoformer)
+    """
     def __init__(self, args):
         self.args = args
         self.device = self._acquire_device()
