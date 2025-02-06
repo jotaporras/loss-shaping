@@ -1,0 +1,75 @@
+# 21
+program: run.py
+method: grid
+metric:
+  name: mse/test
+  goal: minimize
+parameters:
+  wandb_run:
+    value: "Electricity-PatchTST-Constrained-96-Single"
+  wandb_project: 
+    value: "alelab/Autoformer"
+  experiment_tag:
+    #value: "e8_electricity_patchtst_statinformed_seeds123"
+    value: "e10_electricity_patchtst_reproducing"
+  des:
+    value: "Electricity-PatchTST-Constrained-96-Single"
+  model:
+    values: ["PatchTST"]
+  train_epochs:
+    value: 90
+  patience: 
+    value: 10
+  constraint_level: #using train-based constraints
+    values: [0.14]
+  dual_init:
+    value: 1.0
+  dual_lr:
+    value: 0.001
+  pred_len:
+    value: 96
+  is_training:
+    value: "1"
+  root_path:
+    value: "./dataset/electricity/"
+  data_path:
+    value: "electricity.csv"
+  model_id:
+    value: "electricity_constrained"
+  data:
+    value: "custom"
+  features:
+    value: "M"
+  seq_len:
+    value: 336
+  label_len:
+    value: 48
+    # Model parameters
+  enc_in:
+    value: 321
+  e_layers:
+    value: 3
+  n_heads:
+    value: 16
+  d_model:
+    value: 128
+  d_ff:
+    value: 256
+  dropout:
+    value: 0.2
+  fc_dropout:
+    value: 0.2
+  head_dropout:
+    value: 0
+  patch_len:
+    value: 16
+  stride:
+    value: 8
+  itr:
+    value: 1
+  batch_size:
+    value: 32
+  learning_rate: 
+    value: 0.0001
+  seed:
+    value: 2021 
